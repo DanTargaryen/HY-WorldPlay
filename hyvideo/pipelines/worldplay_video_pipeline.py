@@ -16,6 +16,7 @@
 
 
 import inspect
+import json
 import os
 import random
 import re
@@ -82,6 +83,7 @@ from hyvideo.utils.retrieval_context import (
     generate_points_in_sphere,
     select_aligned_memory_frames,
 )
+from hyvideo.utils.context_trace import build_context_trace_record
 
 
 from .pipeline_utils import retrieve_timesteps, rescale_noise_cfg
@@ -998,6 +1000,37 @@ class HunyuanVideo_1_5_Pipeline(DiffusionPipeline):
                 {"k_vision": None, "v_vision": None, "k_txt": None, "v_txt": None}
             )
 
+
+    def _maybe_write_ar_context_trace(
+        self,
+        *,
+        chunk_i,
+        current_frame_idx,
+        selected_frame_indices,
+        chunk_latent_frames,
+    ):
+        trace_path = os.environ.get("HY_WORLDPLAY_CONTEXT_TRACE_JSONL", "")
+        if not trace_path or int(os.environ.get("RANK", "0")) != 0:
+            return
+        current_chunk_indices = list(
+            range(current_frame_idx, current_frame_idx + chunk_latent_frames)
+        )
+        query_start_indices = list(
+            range(current_frame_idx, current_frame_idx + chunk_latent_frames, 4)
+        )
+        record = build_context_trace_record(
+            selected_frame_indices=[int(i) for i in selected_frame_indices],
+            chunk_id=int(chunk_i),
+            chunk_start_latent=int(current_frame_idx),
+            query_start_indices=query_start_indices,
+            current_chunk_indices=current_chunk_indices,
+            num_latents=int(self.chunk_num * self.chunk_latent_frames),
+            chunk_latent_frames=int(chunk_latent_frames),
+        )
+        os.makedirs(os.path.dirname(trace_path) or ".", exist_ok=True)
+        with open(trace_path, "a") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
     def ar_rollout(
         self,
         latents,
@@ -1141,6 +1174,13 @@ class HunyuanVideo_1_5_Pipeline(DiffusionPipeline):
                 selected_frame_indices = [
                     x for x in selected_frame_indices if x not in to_remove
                 ]
+
+                self._maybe_write_ar_context_trace(
+                    chunk_i=chunk_i,
+                    current_frame_idx=current_frame_idx,
+                    selected_frame_indices=selected_frame_indices,
+                    chunk_latent_frames=self.chunk_latent_frames,
+                )
 
                 context_latents = latents[:, :, selected_frame_indices]
                 context_cond_latents_input = cond_latents[:, :, selected_frame_indices]
