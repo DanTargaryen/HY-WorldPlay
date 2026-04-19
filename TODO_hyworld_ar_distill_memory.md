@@ -8,6 +8,41 @@
 
 ## Fixed Paths
 
+## Cluster and Session Rule
+
+All real GPU work must run inside the target Kubernetes pods, not on a random
+login shell.
+
+Preferred GPU entry commands:
+
+```bash
+kubectl exec -it hzh-dev-juicef-2n-master-0 -- bash
+kubectl exec -it hzh-dev-juicef-2n-worker-0 -- bash
+```
+
+Before any long-running task, create or attach a `tmux` session first. Do not
+run long inference or tracing jobs in a fragile foreground shell.
+
+Recommended pattern:
+
+```bash
+tmux new -s hyworld || tmux attach -t hyworld
+```
+
+## Network Proxy Rule
+
+Before any network-dependent action such as model download, pip install, git
+fetch, or HuggingFace access, export:
+
+```bash
+export http_proxy=http://192.168.48.17:18000
+export https_proxy=http://192.168.48.17:18000
+```
+
+If a command fails and looks network-related, first verify that these proxy
+variables are still present in the current shell or tmux session.
+
+
 Use these paths as defaults unless a human explicitly overrides them.
 
 ### Code and model / weight root
@@ -124,6 +159,15 @@ Read these files before running anything:
 Run and save:
 
 ```bash
+kubectl exec -it hzh-dev-juicef-2n-master-0 -- bash
+# or
+kubectl exec -it hzh-dev-juicef-2n-worker-0 -- bash
+
+tmux new -s hyworld || tmux attach -t hyworld
+
+export http_proxy=http://192.168.48.17:18000
+export https_proxy=http://192.168.48.17:18000
+
 cd "$PROJECT_ROOT"
 source "$CONDA_ACTIVATE_SCRIPT"
 
@@ -328,6 +372,14 @@ Default expected answer unless evidence contradicts it:
 - **teacher trace for distillation should follow inference behavior**
 - training-side logic only describes how memory-like samples are constructed
   during training
+
+## Runtime Discipline
+
+- use the Kubernetes GPU pods listed above for actual GPU work
+- use `tmux` before any long-running command
+- export the proxy variables in every fresh shell
+- source the conda activation script before any python / torchrun command
+- do not assume the current shell already has the correct environment
 
 ## Deliverables
 
