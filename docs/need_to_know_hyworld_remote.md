@@ -120,13 +120,3 @@ conda env list
 
 cd /mnt/pfs/users/huangzehuan/projects/linming/HY-WorldPlay
 ```
-
-## 8. Task Entry
-
-For the current AR-distill memory baseline task, read:
-
-```bash
-/mnt/pfs/users/huangzehuan/projects/linming/HY-WorldPlay/TODO_hyworld_ar_distill_memory.md
-```
-
-Then execute the task exactly as specified there.
