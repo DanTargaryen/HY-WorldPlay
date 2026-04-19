@@ -17,6 +17,12 @@ PROJECT_ROOT=/mnt/pfs/users/huangzehuan/projects/linming/HY-WorldPlay
 MODEL_ROOT=/mnt/pfs/users/huangzehuan/projects/linming
 ```
 
+### Conda activation script
+
+```bash
+CONDA_ACTIVATE_SCRIPT=/mnt/pfs/users/huangzehuan/dev/miniconda3/bin/activate
+```
+
 ### Data and outputs root
 
 ```bash
@@ -32,6 +38,48 @@ Create directories if missing:
 ```bash
 mkdir -p "$TRACE_ROOT" "$OUTPUT_ROOT" "$LOG_ROOT" "$REPORT_ROOT"
 ```
+
+## Absolute Path Rule
+
+This task uses many fixed paths under `/mnt/pfs/...`.
+
+**Rule:** any path beginning with `/` is an **absolute path** and must be used
+exactly as written.
+
+Do **not** prepend `PROJECT_ROOT`, current working directory, or any other path
+prefix to absolute paths.
+
+Example:
+
+- correct: `/mnt/pfs/users/huangzehuan/dev/miniconda3/bin/activate`
+- wrong: `/mnt/pfs/users/huangzehuan/projects/linming/users/huangzehuan/dev/miniconda3/bin/activate`
+
+If you are unsure whether a path exists, check it directly with `ls -l <abs_path>`.
+
+## Environment Activation Rule
+
+Before any command involving Python, pip, conda, torch, torchrun, or model
+execution, first run:
+
+```bash
+source "$CONDA_ACTIVATE_SCRIPT"
+```
+
+Then check whether a specific conda environment should be activated:
+
+```bash
+conda env list
+```
+
+If a project-specific environment exists, activate it and record its name in the
+final report:
+
+```bash
+conda activate <env_name>
+```
+
+Do **not** use system python unless the conda activation path is unavailable and
+this fact is explicitly recorded in the final report.
 
 ## Mission
 
@@ -77,6 +125,7 @@ Run and save:
 
 ```bash
 cd "$PROJECT_ROOT"
+source "$CONDA_ACTIVATE_SCRIPT"
 
 {
   echo "===== BASIC ====="
@@ -85,12 +134,20 @@ cd "$PROJECT_ROOT"
   git log -1 --oneline
 
   echo
+  echo "===== ABSOLUTE PATH CHECK ====="
+  ls -l "$CONDA_ACTIVATE_SCRIPT" || true
+
+  echo
+  echo "===== CONDA ====="
+  which conda || true
+  conda env list || true
+
+  echo
   echo "===== PYTHON ====="
   which python || true
   python --version || true
   which python3 || true
   python3 --version || true
-  which conda || true
 
   echo
   echo "===== GPU ====="
@@ -111,8 +168,9 @@ INNERPY
 } | tee "$LOG_ROOT/env_check.log"
 ```
 
-If `python` does not exist but `python3` does, use `python3` consistently and
-note it in the final report.
+If `python` does not exist after sourcing conda, try activating a concrete conda
+environment and rerun the checks. Record the actual environment name in the
+final report.
 
 ## Task 2 — Confirm Model Paths
 
@@ -166,10 +224,16 @@ Save them:
 
 ## Task 4 — Run Offline Context Trace First
 
-### 29-frame trace
+Always activate conda first:
 
 ```bash
 cd "$PROJECT_ROOT"
+source "$CONDA_ACTIVATE_SCRIPT"
+```
+
+### 29-frame trace
+
+```bash
 python scripts/analyze_ar_context.py   --pose-path "$TEST_POSE"   --video-length 29   --jsonl-out "$TRACE_ROOT/offline_29f.jsonl"   --summary-out "$TRACE_ROOT/offline_29f.md"   --strict   2>&1 | tee "$LOG_ROOT/offline_trace_29f.log"
 ```
 
@@ -194,6 +258,13 @@ Check that:
 
 ## Task 5 — Run Short Real AR-distill Inference With Trace Hook
 
+Always activate conda first:
+
+```bash
+cd "$PROJECT_ROOT"
+source "$CONDA_ACTIVATE_SCRIPT"
+```
+
 Set trace output first:
 
 ```bash
@@ -204,8 +275,6 @@ rm -f "$HY_WORLDPLAY_CONTEXT_TRACE_JSONL"
 Run 29-frame AR-distill smoke test:
 
 ```bash
-cd "$PROJECT_ROOT"
-
 torchrun --nproc_per_node=1 hyvideo/generate.py   --prompt "$TEST_PROMPT"   --image_path "$TEST_IMAGE"   --resolution 480p   --aspect_ratio 16:9   --video_length 29   --seed 1   --rewrite false   --sr false   --save_pre_sr_video   --pose "$TEST_POSE"   --output_path "$OUTPUT_ROOT/smoke_29f"   --model_path "$MODEL_PATH"   --action_ckpt "$AR_DISTILL_ACTION_MODEL_PATH"   --few_step true   --num_inference_steps 4   --model_type ar   --height 480   --width 832   --use_vae_parallel false   --use_sageattn false   --use_fp8_gemm false   --transformer_resident_ar_rollout true   2>&1 | tee "$LOG_ROOT/inference_29f.log"
 ```
 
@@ -295,6 +364,8 @@ Use this structure:
 ## 1. Environment
 - Host:
 - Project root:
+- Conda activate script:
+- Conda environment name:
 - Python:
 - Torch:
 - CUDA:
